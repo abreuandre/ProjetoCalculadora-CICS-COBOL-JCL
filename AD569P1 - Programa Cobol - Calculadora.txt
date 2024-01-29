@@ -1,0 +1,156 @@
+       IDENTIFICATION DIVISION.                                  
+       PROGRAM-ID.                                               
+           AD569P1.                                              
+       AUTHOR.                                                   
+           ANDRE.                                                
+      ******************************************                 
+      *     PROGRAMA CALCULADORA (CICS)        *                 
+      ******************************************                 
+      *                                                          
+       ENVIRONMENT DIVISION.                                     
+       CONFIGURATION SECTION.                                    
+       SPECIAL-NAMES.                                            
+           DECIMAL-POINT IS COMMA.                               
+       INPUT-OUTPUT SECTION.                                     
+       FILE-CONTROL.                                             
+      *
+       DATA DIVISION.                                              
+       FILE SECTION.                                               
+       WORKING-STORAGE SECTION.                                    
+           COPY AD569M1.                                           
+       77  WK-RET-CICS      PIC S9(4)   COMP VALUE ZEROS.          
+       77  WK-RET-CICS-EDIT PIC ZZ9     VALUE ZEROS.               
+       77  WK-MAPA-DESENHADO PIC X           VALUE 'N'.            
+       77  WK-DATA          PIC S9(15)  COMP-3 VALUE ZEROS.                                                            
+      *                                                            
+       PROCEDURE DIVISION.                                         
+       000-PRINCIPAL SECTION.                                      
+       001-PRINCIPAL.                                              
+           PERFORM 101-INICIAR.                                    
+           IF WK-MAPA-DESENHADO = 'S'                              
+               PERFORM 201-PROCESSAR                               
+           END-IF.                                                 
+           PERFORM 901-FINALIZAR.
+           EXEC CICS                                             
+               RETURN                                            
+           END-EXEC.                                             
+      **************************************                     
+       100-INICIAR SECTION.                                      
+       101-INICIAR.                                              
+           EXEC CICS RECEIVE                                     
+               MAPSET('AD569M1')                                 
+               MAP('MAPCALC')                                    
+               INTO(MAPCALCI)                                    
+               RESP(WK-RET-CICS)                                 
+           END-EXEC.                                             
+           EVALUATE WK-RET-CICS                                  
+               WHEN DFHRESP(NORMAL)                              
+                   MOVE 'S'  TO WK-MAPA-DESENHADO                
+               WHEN DFHRESP(MAPFAIL)                             
+                   MOVE 'N'  TO WK-MAPA-DESENHADO                
+               WHEN OTHER                                          
+                   MOVE 'ERRO XXX NO RECEIVE'  TO  MSGO            
+                   MOVE WK-RET-CICS  TO WK-RET-CICS-EDIT           
+                   MOVE WK-RET-CICS-EDIT TO MSGO(6:3)             
+                   EXEC CICS                                       
+                       RETURN                                        
+                   END-EXEC                                        
+           END-EVALUATE.                                           
+      **********************************                           
+       200-PROCESSAR SECTION.                                      
+       201-PROCESSAR.
+           EXEC CICS BIF         
+               DEEDIT FIELD(N1I) 
+           END-EXEC.             
+           EXEC CICS BIF         
+               DEEDIT FIELD(N2I) 
+           END-EXEC.                                                          
+           EVALUATE OPI                                            
+               WHEN '+'                                            
+                   ADD N1I N2I GIVING RESULTO                      
+                   MOVE 'SOMA EFETUADA' TO MSGO                    
+               WHEN '-'                                            
+                   SUBTRACT N2I FROM N1I GIVING RESULTO            
+                   MOVE 'SUBTRACAO EFETUADA' TO MSGO           
+               WHEN '*'                                        
+                   MULTIPLY  N1I BY N2I GIVING RESULTO         
+                   MOVE 'MULTIPLICACAO EFETUADA' TO MSGO       
+               WHEN '/'                                        
+                   DIVIDE N1I BY N2I GIVING RESULTO            
+                   MOVE 'DIVISAO EFETUADA' TO MSGO
+               WHEN OTHER                          
+                   MOVE 'OPERACAO INVALIDA' TO MSGO           
+           END-EVALUATE.
+           MOVE LOW-VALUES TO N1O N2O.                           
+      **************************************                   
+       900-FINALIZAR SECTION.                                  
+       901-FINALIZAR.
+           EXEC CICS ASKTIME    
+               ABSTIME(WK-DATA) 
+           END-EXEC.            
+           EXEC CICS FORMATTIME 
+               ABSTIME(WK-DATA) 
+               DDMMYYYY(DATAO)  
+               DATESEP('/')     
+               TIME(HORAO)      
+               TIMESEP(':')     
+           END-EXEC.                                                
+           IF WK-MAPA-DESENHADO = 'N'                          
+               EXEC CICS SEND                                  
+                   MAPSET('AD569M1')                           
+                   MAP('MAPCALC')                              
+                   MAPONLY                                     
+                   ERASE                                       
+               END-EXEC                                        
+           ELSE                                                
+               EXEC CICS SEND                                  
+                   MAPSET('AD569M1')                           
+                   MAP('MAPCALC')                              
+                   DATAONLY                                    
+                   FROM(MAPCALCO)                              
+               END-EXEC                                        
+           END-IF.
+
+
+===========================================================================================================================
+
+Compilando o programa
+
+GR.EAD569.JOBLIB(COMPCICS) - 01.01
+
+//EAD569XX JOB 'EAD569',MSGCLASS=X,CLASS=C,NOTIFY=EAD569
+//*==================================================
+//* JCL PARA COMPILAR PROGRAMAS CICS
+//*  NAME - NOME DO SEU PROGRAMA
+//*  INSTR - SUA CHAVE
+//*==================================================
+//         JCLLIB ORDER=GR.GERAL.PROCLIB
+//*
+//COMPPLI  EXEC DFHCICS1,NAME=AD569P1,INSTR='EAD569,'
+//         LIB2='GR.GERAL'
+
+
+===================================================================================================================
+
+No CICS
+
+Cadastrar o programa com o ceda
+
+ceda
+def prog
+PROGRAM  ==> AD569P1
+GROUP    ==> EAD569
+LANGUAGE ==> cobol
+
+
+def trans
+TRANSACTION ==> AAD1
+GROUP       ==> EAD569
+PROGRAM     ==> AD569P1
+
+dis gr(ead569)
+instalar o MAPSET, PROGRAM e TRANSACTION    
+
+cemt set prog(ad569p1) new
+
+Digitar o código da transação que é o AAD1                                                                                                                  
